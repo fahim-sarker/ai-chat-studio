@@ -18,13 +18,19 @@ function createConversation(): Conversation {
   return { id: crypto.randomUUID(), title: NEW_CHAT_TITLE, messages: [] };
 }
 
+function createMessage(role: Message['role'], content: string): Message {
+  return { id: crypto.randomUUID(), role, content };
+}
+
 export default function ChatWindow() {
   const [conversations, setConversations] = useState<Conversation[]>([
     INITIAL_CONVERSATION,
   ]);
   const [activeId, setActiveId] = useState<string>(INITIAL_CONVERSATION.id);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
 
   const active = conversations.find((c) => c.id === activeId) ?? conversations[0];
+  const isLoading = loadingId === active.id;
 
   function addMessage(conversationId: string, message: Message) {
     setConversations((prev) =>
@@ -40,11 +46,12 @@ export default function ChatWindow() {
     setActiveId(conversation.id);
   }
 
-  function handleSend(text: string) {
+  async function handleSend(text: string) {
     const conversationId = active.id;
+    const userMessage = createMessage('user', text);
+    const history = [...active.messages, userMessage];
 
-    addMessage(conversationId, { id: crypto.randomUUID(), role: 'user', content: text });
-
+    addMessage(conversationId, userMessage);
     setConversations((prev) =>
       prev.map((c) =>
         c.id === conversationId && c.title === NEW_CHAT_TITLE
@@ -52,15 +59,27 @@ export default function ChatWindow() {
           : c,
       ),
     );
+    setLoadingId(conversationId);
 
-    // Placeholder reply. Real AI responses come in a later PR.
-    setTimeout(() => {
-      addMessage(conversationId, {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: 'This is a placeholder reply. Real AI responses are coming soon.',
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: history.map(({ role, content }) => ({ role, content })),
+        }),
       });
-    }, 600);
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Something went wrong.');
+
+      addMessage(conversationId, createMessage('assistant', data.reply));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Something went wrong.';
+      addMessage(conversationId, createMessage('assistant', `⚠️ ${message}`));
+    } finally {
+      setLoadingId(null);
+    }
   }
 
   return (
@@ -73,7 +92,12 @@ export default function ChatWindow() {
       />
       <main className="flex min-w-0 flex-1 flex-col">
         <MessageList messages={active.messages} />
-        <ChatInput onSend={handleSend} />
+        {isLoading && (
+          <p className="mx-auto w-full max-w-3xl px-4 pb-2 text-sm text-neutral-500">
+            Thinking...
+          </p>
+        )}
+        <ChatInput onSend={handleSend} disabled={isLoading} />
       </main>
     </div>
   );
