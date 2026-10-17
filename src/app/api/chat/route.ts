@@ -76,7 +76,10 @@ async function openStream(ai: GoogleGenAI, contents: GeminiContent[]) {
 export async function POST(request: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: 'Server is missing GEMINI_API_KEY.' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Server is missing GEMINI_API_KEY.' },
+      { status: 500 },
+    );
   }
 
   let body: unknown;
