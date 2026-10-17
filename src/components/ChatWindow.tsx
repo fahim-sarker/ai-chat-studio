@@ -31,11 +31,26 @@ export default function ChatWindow() {
 
   const active = conversations.find((c) => c.id === activeId) ?? conversations[0];
   const isLoading = loadingId === active.id;
+  const lastMessage = active.messages[active.messages.length - 1];
+  const showThinking = isLoading && lastMessage?.role === 'user';
 
   function addMessage(conversationId: string, message: Message) {
     setConversations((prev) =>
       prev.map((c) =>
         c.id === conversationId ? { ...c, messages: [...c.messages, message] } : c,
+      ),
+    );
+  }
+
+  function updateMessage(conversationId: string, messageId: string, content: string) {
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === conversationId
+          ? {
+              ...c,
+              messages: c.messages.map((m) => (m.id === messageId ? { ...m, content } : m)),
+            }
+          : c,
       ),
     );
   }
@@ -61,6 +76,10 @@ export default function ChatWindow() {
     );
     setLoadingId(conversationId);
 
+    const assistantId = crypto.randomUUID();
+    let started = false;
+    let reply = '';
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -70,13 +89,39 @@ export default function ChatWindow() {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Something went wrong.');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? 'Something went wrong.');
+      }
+      if (!res.body) throw new Error('No response from the server.');
 
-      addMessage(conversationId, createMessage('assistant', data.reply));
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        reply += decoder.decode(value, { stream: true });
+
+        if (!started) {
+          started = true;
+          addMessage(conversationId, { id: assistantId, role: 'assistant', content: reply });
+        } else {
+          updateMessage(conversationId, assistantId, reply);
+        }
+      }
+
+      if (!started) {
+        addMessage(conversationId, createMessage('assistant', '(No response received.)'));
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Something went wrong.';
-      addMessage(conversationId, createMessage('assistant', `⚠️ ${message}`));
+      if (started) {
+        updateMessage(conversationId, assistantId, `${reply}\n\n⚠️ ${message}`);
+      } else {
+        addMessage(conversationId, createMessage('assistant', `⚠️ ${message}`));
+      }
     } finally {
       setLoadingId(null);
     }
@@ -92,7 +137,7 @@ export default function ChatWindow() {
       />
       <main className="flex min-w-0 flex-1 flex-col">
         <MessageList messages={active.messages} />
-        {isLoading && (
+        {showThinking && (
           <p className="mx-auto w-full max-w-3xl px-4 pb-2 text-sm text-neutral-500">
             Thinking...
           </p>
