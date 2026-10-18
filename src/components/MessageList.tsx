@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import type { Message } from '@/types/chat';
+import MarkdownContent from './MarkdownContent';
 
 interface MessageListProps {
   messages: Message[];
@@ -11,7 +12,7 @@ export default function MessageList({ messages }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    bottomRef.current?.scrollIntoView({ behavior: 'auto' });
   }, [messages]);
 
   if (messages.length === 0) {
@@ -31,15 +32,15 @@ export default function MessageList({ messages }: MessageListProps) {
             key={message.id}
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
-            <div
-              className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm leading-relaxed whitespace-pre-wrap ${
-                message.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-neutral-800 text-neutral-100'
-              }`}
-            >
-              {message.content}
-            </div>
+            {message.role === 'user' ? (
+              <div className="max-w-[80%] rounded-2xl bg-blue-600 px-4 py-2 text-sm leading-relaxed whitespace-pre-wrap text-white">
+                {message.content}
+              </div>
+            ) : (
+              <div className="max-w-[80%] min-w-0 rounded-2xl bg-neutral-800 px-4 py-2 text-sm leading-relaxed text-neutral-100">
+                <MarkdownContent content={message.content} />
+              </div>
+            )}
           </div>
         ))}
         <div ref={bottomRef} />
