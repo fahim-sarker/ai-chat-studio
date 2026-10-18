@@ -18,6 +18,8 @@ interface GeminiContent {
   parts: { text: string }[];
 }
 
+type Chunk = { text?: string };
+
 function isValidMessages(value: unknown): value is IncomingMessage[] {
   return (
     Array.isArray(value) &&
@@ -44,14 +46,21 @@ function getStatus(error: unknown): number | undefined {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function generateWithRetry(ai: GoogleGenAI, contents: GeminiContent[]) {
+/**
+ * Opens the stream and waits for the first chunk. Retrying is only safe
+ * before any text has been sent to the client, so retries happen here.
+ */
+async function openStream(ai: GoogleGenAI, contents: GeminiContent[]) {
   const models = [MODEL, FALLBACK_MODEL].filter((m): m is string => Boolean(m));
   let lastError: unknown;
 
   for (const model of models) {
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
-        return await ai.models.generateContent({ model, contents });
+        const stream = await ai.models.generateContentStream({ model, contents });
+        const iterator = stream[Symbol.asyncIterator]();
+        const first = await iterator.next();
+        return { iterator, first };
       } catch (error) {
         lastError = error;
         const status = getStatus(error);
@@ -92,8 +101,35 @@ export async function POST(request: Request) {
 
   try {
     const ai = new GoogleGenAI({ apiKey });
-    const response = await generateWithRetry(ai, contents);
-    return NextResponse.json({ reply: response.text ?? '' });
+    const { iterator, first } = await openStream(ai, contents);
+    const encoder = new TextEncoder();
+
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          let result = first;
+          while (!result.done) {
+            const text = (result.value as Chunk).text;
+            if (text) controller.enqueue(encoder.encode(text));
+            result = await iterator.next();
+          }
+          controller.close();
+        } catch (error) {
+          console.error('Gemini stream interrupted:', error);
+          controller.error(error);
+        }
+      },
+      async cancel() {
+        await iterator.return?.(undefined);
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+      },
+    });
   } catch (error) {
     console.error('Gemini request failed:', error);
 
