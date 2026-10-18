@@ -43,7 +43,9 @@ export default function ChatWindow() {
         c.id === conversationId
           ? {
               ...c,
-              messages: c.messages.map((m) => (m.id === messageId ? { ...m, content } : m)),
+              messages: c.messages.map((m) =>
+                m.id === messageId ? { ...m, content } : m,
+              ),
             }
           : c,
       ),
@@ -115,7 +117,11 @@ export default function ChatWindow() {
 
         if (!started) {
           started = true;
-          addMessage(conversationId, { id: assistantId, role: 'assistant', content: reply });
+          addMessage(conversationId, {
+            id: assistantId,
+            role: 'assistant',
+            content: reply,
+          });
         } else {
           updateMessage(conversationId, assistantId, reply);
         }
