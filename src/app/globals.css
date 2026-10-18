@@ -24,3 +24,12 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+.markdown li:has(> input[type='checkbox']) {
+  list-style: none;
+  margin-left: -1.25rem;
+}
+
+.markdown input[type='checkbox'] {
+  margin-right: 0.5rem;
+  accent-color: #2563eb;
+}
