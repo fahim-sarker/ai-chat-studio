@@ -56,7 +56,10 @@ export default function Sidebar({
         </button>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-3" aria-label="Conversations">
+      <nav
+        className="flex-1 space-y-1 overflow-y-auto px-3 pb-3"
+        aria-label="Conversations"
+      >
         {conversations.map((conversation) => {
           const isActive = conversation.id === activeId;
 
@@ -90,7 +93,7 @@ export default function Sidebar({
                   >
                     {conversation.title}
                   </button>
-                  <div className="flex shrink-0 pr-1 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
+                  <div className="flex shrink-0 pr-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
                     <button
                       onClick={() => startEditing(conversation)}
                       aria-label={`Rename ${conversation.title}`}
